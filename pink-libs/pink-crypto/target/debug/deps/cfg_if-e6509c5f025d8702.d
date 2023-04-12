@@ -1,0 +1,7 @@
+/Users/winston/workspace/misc/rust-projects/rust_vault_snippets/pink-libs/pink-crypto/target/debug/deps/cfg_if-e6509c5f025d8702.rmeta: /Users/winston/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cfg-if-1.0.0/src/lib.rs
+
+/Users/winston/workspace/misc/rust-projects/rust_vault_snippets/pink-libs/pink-crypto/target/debug/deps/libcfg_if-e6509c5f025d8702.rlib: /Users/winston/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cfg-if-1.0.0/src/lib.rs
+
+/Users/winston/workspace/misc/rust-projects/rust_vault_snippets/pink-libs/pink-crypto/target/debug/deps/cfg_if-e6509c5f025d8702.d: /Users/winston/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cfg-if-1.0.0/src/lib.rs
+
+/Users/winston/.cargo/registry/src/index.crates.io-6f17d22bba15001f/cfg-if-1.0.0/src/lib.rs:
