@@ -8,5 +8,9 @@ pub enum CryptoError {
     EcdhInvalidPublicKey,
     AESCannotEncrypt,
     AESCannotDecrypt,
+    InvalidAddress,
+    BalanceOverflow,
+    FetchDataFailed,
+    FailedToGetBlockNumber,
     Test,
 }
