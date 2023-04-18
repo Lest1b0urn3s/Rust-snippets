@@ -290,6 +290,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "binascii"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "383d29d513d8764dcdc42ea295d979eb99c3c9f00607b3692cf68a431f7dca72"
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2917,6 +2923,7 @@ name = "rust_vault_snippets"
 version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
+ "binascii",
  "cipher",
  "debug_print",
  "getrandom 0.2.9",
@@ -2926,6 +2933,7 @@ dependencies = [
  "ink_e2e",
  "ink_env",
  "libsecp256k1",
+ "log",
  "parity-scale-codec",
  "pink-extension",
  "pink-extension-runtime",
@@ -2934,6 +2942,7 @@ dependencies = [
  "scale-info",
  "serde",
  "serde-json-core",
+ "serde_json",
  "tiny-keccak",
 ]
 
@@ -3282,9 +3291,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d721eca97ac802aa7777b701877c8004d950fc142651367300d21c1cc0194744"
+checksum = "057d394a50403bcac12672b2b18fb387ab6d289d957dab67dd201875391e52f1"
 dependencies = [
  "itoa",
  "ryu",

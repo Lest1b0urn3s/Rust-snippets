@@ -12,5 +12,6 @@ pub enum CryptoError {
     BalanceOverflow,
     FetchDataFailed,
     FailedToGetBlockNumber,
+    RequestFailed,
     Test,
 }

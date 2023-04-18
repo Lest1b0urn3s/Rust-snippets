@@ -1,30 +1,98 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
-// extern crate libsecp256k1;
-
-// pink_extension is short for Phala ink! extension
-use pink_extension as pink;
 
 // // Custom crates
 pub mod error;
 pub mod ec;
+
+// pink_extension is short for Phala ink! extension
+use pink_extension as pink;
+use serde::{Deserialize, Serialize};
+
+// This is a trait, which is used to serialize / deserialize data in the struct
+#[derive(Serialize, Deserialize)]
+pub struct UploadedFile {
+    fileName: String,
+    contentType: String
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PendingFile {
+    fileName: String,
+    url: String,
+    fileUuid: String
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct StorageResponseData {
+    sessionUuid: String,
+    files: Vec<PendingFile>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct StorageResponse {
+    id: String,
+    status: u8,
+    data: StorageResponseData
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FileContent {
+    id: String,
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub struct Files { files: Vec<UploadedFile> }
+
+pub fn create_file_payload(file: UploadedFile) -> String {
+    // Some data structure.
+    let files = Files { files: vec![file]};
+
+    // Serialize it to a JSON string.
+    let v = serde_json::to_string(&files);
+
+    v.unwrap().to_string()
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct IPFSSync { directSync: bool }
+
+pub fn create_ipfs_sync(direct_sync: bool) -> String {
+    // Some data structure.
+    let sync = IPFSSync { directSync: direct_sync };
+
+    // Serialize it to a JSON string.
+    let s = serde_json::to_string(&sync);
+
+    s.unwrap().to_string()
+}
+
+
+
+#[derive(Serialize, Deserialize)]
+pub struct RequestContent {
+    data: String,
+}
+
 
 #[pink::contract(env=PinkEnvironment)]
 mod phat_crypto {
 
     use super::pink;
 
+    use binascii::b64encode;
     use pink::{
         PinkEnvironment,
         chain_extension::{signing, SigType},
+        http_get, http_post, http_put
     };
+    use serde_json::{Result, Value};
 
-    use pink_web3::types::{Address, U256, H160};
+    // use pink_web3::types::{Address, U256, H160};
     use pink_web3::api::{Eth, Namespace};
     use pink_web3::transports::pink_http::{resolve_ready, PinkHttp};
-    use pink_web3::contract::{Contract, Options};
-    use pink_web3::Web3;
 
     use ink_env::ecdsa_recover;
 
@@ -97,16 +165,6 @@ mod phat_crypto {
             Ok(self.salt.clone())
         }
 
-        // #[ink(message)]
-        // pub fn validate_ownership(&self) -> CustomResult<U256> {
-        //     use pink_web3::api::{Eth, Namespace};
-        //     use pink_web3::transports::pink_http::PinkHttp;
-        //     let phttp = PinkHttp::new("https://moonbeam-alpha.api.onfinality.io/public");
-        //     let eth = Eth::new(phttp);
-        //     let result = eth.gas_price().resolve().unwrap();
-        //     Ok(result)
-        // }
-
         #[ink(message)]
         pub fn get_gas_price(&self) -> CustomResult<u128> {
             let phttp = PinkHttp::new("https://moonbeam-alpha.api.onfinality.io/public");
@@ -143,60 +201,45 @@ mod phat_crypto {
             
             let mut output = [0; 33];
             ecdsa_recover(&signature, &message, &mut output).unwrap();
-
             Ok(output)
         }
 
+        #[ink(message)]
+        pub fn download_file_from_decentralized(&self) -> (u16, Vec<u8>) {
+            let response = http_get!("https://ipfs2.apillon.io/ipfs/QmQLuYkRADePaWJtG6vxXaxurMgeuhcbEkRfC4xW6ceDFQ");
+            (response.status_code, response.body)
+        }
+
+        // #[ink(message)]
+        // pub fn upload_file_to_decentralized(&self, auth_token: String, bucket_uuid: String, payload: String) -> CustomResult<String> {
+        //     let bucket_uuid: String = String::from("10268b28-684e-42a1-a037-5ce3663e7827");            
+        //     let url = format!("https://app-dev.apillon.io/storage/{}/upload", bucket_uuid);
+        //     let data = "{files: [{fileName: \"TestFile\", \"contentType\": \"text/html\"}]}";
+
+        //     let mut output_buffer = [0u8; 68];
+        //     let message = "44f2b448-b89c-42df-afd2-c487d9a7b4a4:@AUAY0DHm86P";
+        //     let encoded = b64encode(&message.as_bytes(), &mut output_buffer).ok().unwrap();
+        //     let authorization = format!("Authorization: Basic {}\n", String::from_utf8_lossy(encoded));
+        //     let content_type = format!("Content-Type: application/json");
+
+        //     let headers: Vec<(String, String)> = vec![
+        //         ("Authorization".into(), authorization),
+        //         ("Content-Type".into(), content_type)
+        //     ];
+
+        //     let response = http_post!(url, data, headers);
+
+        //     assert_eq!(response.status_code, 200);
+        //     Ok(String::from("Hello, world!"))
+        // }
     }
 
     #[cfg(test)]
     mod tests {
+        use ink_e2e::subxt::rpc::types::StorageData;
+        use crate::StorageResponse;
+
         use super::*;
-        use core::future::ready;
-        use pink::debug;
-        use pink_web3::types::H160;
-
-        // #[ink::test]
-        // fn crypto(self) {
-        //     let payload = "test";
-
-        //     let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-        //     let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
-        
-        //     // Encrypt payload
-        //     let cipher = Aes256GcmSiv::new(key.into());
-        //     let encrypted_text: Vec<u8> = cipher.encrypt(nonce, plaintext.as_bytes().as_ref()).unwrap();
-        
-        //     // Generate key and nonce
-        //     let key_bytes: Vec<u8> = vec![0; 32];
-        //     let key: &GenericArray<u8, U32> = GenericArray::from_slice(&key_bytes);
-        //     let nonce_bytes: Vec<u8> = vec![0; 12];
-        //     let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&nonce_bytes);
-        
-        //     // Encrypt payload
-        //     let cipher = Aes256GcmSiv::new(key.into());
-        //     let encrypted_text: Vec<u8> = cipher.encrypt(nonce, payload.as_bytes().as_ref()).unwrap();
-        
-        //     // Generate key and nonce
-        //     let key_bytes: Vec<u8> = vec![0; 32];
-        //     let key: &GenericArray<u8, U32> = GenericArray::from_slice(&key_bytes);
-        //     let nonce_bytes: Vec<u8> = vec![0; 12];
-        //     let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&nonce_bytes);
-        
-        //     // Decrypt payload
-        //     let cipher = Aes256GcmSiv::new(key.into());
-        //     let decrypted_text = cipher.decrypt(&nonce, encrypted_text.as_ref()).unwrap();
-
-        //     assert_eq!(payload.as_bytes(), decrypted_text);
-        //     assert_eq!(payload, String::from_utf8_lossy(&decrypted_text));
-        // }
-
-        // struct Foo {
-        //     arr: [u8; 65],
-        // }
-        // struct Bar {
-        //     arr: [u8; 32],
-        // }
 
         #[test]
         fn recovery_signature() {
@@ -219,28 +262,107 @@ mod phat_crypto {
         }
         
        
-        #[test]
-        fn test_ownership_validation() {
-            pink_extension_runtime::mock_ext::mock_all_ext();
+        // #[test]
+        // fn test_ownership_validation() {
+        // use core::future::ready;
+        // use pink::debug;
+        // use pink_web3::types::H160;
+        //     pink_extension_runtime::mock_ext::mock_all_ext();
 
-            let phttp = PinkHttp::new("https://moonbase-alpha.public.blastapi.io");
-            let eth = Eth::new(phttp);
-            let address = Address::from_str("1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
-            // let from: H160 = Address::from_str("0x1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
-            let contract = Contract::from_json(
-                eth, address, include_bytes!("erc721_abi.json")).unwrap();
-            let query = "ownerOf";
-            let tokenId = 2;
-            let result1: Address = resolve_ready(contract.query(&query, (tokenId, ), None, Options::default(), None)).unwrap();
-            // let x: String = resolve_ready(
-            //     contract
-            //     .query("name", (), None, Options::default(), None)
-            // ).unwrap();
+        //     let phttp = PinkHttp::new("https://moonbase-alpha.public.blastapi.io");
+        //     let eth = Eth::new(phttp);
+        //     let address = Address::from_str("0x1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
+        //     // let from: H160 = Address::from_str("0x1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
+        //     let contract = Contract::from_json(
+        //         eth, address, include_bytes!("erc721_abi.json")).unwrap();
+        //     let query = "ownerOf";
+        //     let tokenId = 2;
+        //     let result1: Address = resolve_ready(contract.query(&query, (tokenId, ), None, Options::default(), None)).unwrap();
 
-            debug!("to: {:#?}", address);
-            // let result: u128 = resolve_ready(contract.query(&query, (owner, ), address, Options::default(), None)).unwrap();
+        //     debug!("to: {:#?}", address);
+        //     // let result: u128 = resolve_ready(contract.query(&query, (owner, ), address, Options::default(), None)).unwrap();
     
-            assert_eq!(true, true);
+        //     assert_eq!(true, true);
+        // }
+
+        #[test]
+        fn test_download_files_ipfs() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            let response = http_get!("https://ipfs2.apillon.io/ipfs/QmQLuYkRADePaWJtG6vxXaxurMgeuhcbEkRfC4xW6ceDFQ");
+            assert_eq!(response.status_code, 200);
+        }
+
+        #[test]
+        
+        fn test_upload_files_ipfs() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            use crate::{
+                create_file_payload,
+                create_ipfs_sync,
+                UploadedFile,
+                StorageResponse,
+                PendingFile
+            };
+            
+            let content_type = String::from("text/html");
+            let bucket_uuid: String = String::from("10268b28-684e-42a1-a037-5ce3663e7827");
+
+            // ** UPLOAD FILE TO APILLON STORAGE ** //  
+            let url_f_upload = format!("https://api-dev.apillon.io/storage/{}/upload", bucket_uuid);
+            let url_get_content: String = format!("https://api-dev.apillon.io/storage/{}/content", bucket_uuid);
+
+            
+            let file = UploadedFile { fileName: String::from("NovFajlYeeee"), contentType: content_type };
+            let json_data = create_file_payload(file);
+
+            let mut output_buffer = [0u8; 68];
+            let message = "44f2b448-b89c-42df-afd2-c487d9a7b4a4:@AUAY0DHm86P";
+            let encoded = b64encode(&message.as_bytes(), &mut output_buffer).ok().unwrap();
+            let authorization = format!("Basic {}", String::from_utf8_lossy(encoded));
+            let content_type = format!("application/json");
+
+            let headers: Vec<(String, String)> = vec![
+                ("Authorization".into(), authorization),
+                ("Content-Type".into(), content_type)
+            ];
+
+            // assert_ne!(headers, headers);
+            let response_get = http_get!(url_get_content, headers.clone());
+            assert_eq!(response_get.status_code, 200);
+
+            let response = http_post!(url_f_upload, json_data, headers.clone());
+
+            let r = match String::from_utf8(response.body) {
+                Ok(r) => r,
+                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+            };
+
+            assert_eq!(response.status_code, 201);
+            let resp: StorageResponse = serde_json::from_str(&r).unwrap();
+            let file = &resp.data.files[0];
+            let url_upload_s3: String = file.url.to_owned();
+            let a = b"Hello, world!";
+            let origin = String::from("https://app-dev.apillon.io/");
+
+            let content_type = format!("text/plain");
+            let headers_s3: Vec<(String, String)> = vec![
+                ("Content-Type".into(), content_type),
+                ("Referer".into(), origin.clone()),
+                ("Origin".into(), origin.clone())
+            ];
+
+            http_put!(url_upload_s3, *a, headers_s3);
+
+            // ** TRIGGER UPLOAD TO IPFS (From Apillon storage) ** //
+            let url_sync_ipfs = format!(
+                "https://api-dev.apillon.io/storage/{}/upload/{}/end", 
+                bucket_uuid, resp.data.sessionUuid);
+
+            let ipfs_sync_json = create_ipfs_sync(true);
+
+            let response = http_post!(url_sync_ipfs, ipfs_sync_json, headers.clone());
+            assert_eq!(response.status_code, 200);
+
         }
 
     }
