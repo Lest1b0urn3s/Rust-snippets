@@ -96,10 +96,13 @@ mod phat_crypto {
     };
     use alloc::{vec, vec::Vec, string::String, format};
 
-    // use pink_web3::types::{Address, U256, H160};
+    use pink_web3::types::{Address, H160, U256};
+    use pink_web3::contract::{Contract, Options};
     use pink_web3::api::{Eth, Namespace};
-    use pink_web3::transports::pink_http::{PinkHttp};
-
+    use pink_web3::transports::{
+        pink_http::{PinkHttp},
+        resolve_ready
+    };
 
     use ink_env::ecdsa_recover;
 
@@ -283,6 +286,8 @@ mod phat_crypto {
 
     #[cfg(test)]
     mod tests {
+        use core::panic;
+
         use super::*;
 
         #[test]
@@ -306,29 +311,30 @@ mod phat_crypto {
         }
         
        
-        // #[test]
-        // fn test_ownership_validation() {
-        // use core::future::ready;
-        // use pink::debug;
-        // use pink_web3::types::H160;
-        //     pink_extension_runtime::mock_ext::mock_all_ext();
+        #[test]
+        fn test_ownership_validation() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            use pink_web3::transports::{
+                pink_http::{PinkHttp},
+                resolve_ready
+            };
 
-        //     let phttp = PinkHttp::new("https://moonbase-alpha.public.blastapi.io");
-        //     let eth = Eth::new(phttp);
-        //     let address = Address::from_str("0x1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
-        //     // let from: H160 = Address::from_str("0x1b63b10dc015bbcac201490ca286e844bf7c0ff1").unwrap();
-        //     let contract = Contract::from_json(
-        //         eth, address, include_bytes!("erc721_abi.json")).unwrap();
-        //     let query = "ownerOf";
-        //     let tokenId = 2;
-        //     let result1: Address = resolve_ready(contract.query(&query, (tokenId, ), None, Options::default(), None)).unwrap();
+            let phttp = PinkHttp::new("https://moonbase-alpha.public.blastapi.io");
+            let eth = Eth::new(phttp);
 
-        //     debug!("to: {:#?}", address);
-        //     // let result: u128 = resolve_ready(contract.query(&query, (owner, ), address, Options::default(), None)).unwrap();
-    
-        //     assert_eq!(true, true);
-        // }
+            let addrs_hex = hex_literal::hex!("1b63b10dC015bbcaC201490CA286e844bf7c0ff1");
+            let address: Address = Address::from_slice(&addrs_hex);
+            let contract = Contract::from_json(eth, address, include_bytes!("erc721_abi.json")).unwrap();
 
+            let query = "ownerOf";
+            let result1: Address = resolve_ready(contract.query(&query, (U256::from(1), ), None, Options::default(), None)).unwrap();
+            assert_eq!("0xa257f4ef17c81eb4d15a741a8d09e1ebb3953202", format!("{:?}", result1));
+
+            let result2: Address = resolve_ready(contract.query(&query, (U256::from(2), ), None, Options::default(), None)).unwrap();
+            assert_eq!("0xc9c7731fab51730224d5a9ec433f59433eb35166", format!("{:?}", result2));
+
+        }
+        
         #[test]
         fn test_download_files_ipfs() {
             pink_extension_runtime::mock_ext::mock_all_ext();
