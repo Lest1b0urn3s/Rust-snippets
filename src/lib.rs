@@ -9,6 +9,26 @@ pub mod ec;
 // pink_extension is short for Phala ink! extension
 use pink_extension as pink;
 use serde::{Deserialize, Serialize};
+use alloc::{vec, vec::Vec, string::String};
+use pink_json;
+
+#[derive(Serialize, Deserialize)]
+pub struct IPFSSync { directSync: bool }
+
+pub fn create_ipfs_sync(direct_sync: bool) -> String {
+    // Some data structure.
+    let sync = IPFSSync { directSync: direct_sync };
+
+    // Serialize it to a JSON string.
+    let s = pink_json::to_string(&sync);
+
+    s.unwrap()
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RequestContent {
+    data: String,
+}
 
 // This is a trait, which is used to serialize / deserialize data in the struct
 #[derive(Serialize, Deserialize)]
@@ -42,7 +62,6 @@ pub struct FileContent {
     id: String,
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct Files { files: Vec<UploadedFile> }
 
@@ -51,29 +70,9 @@ pub fn create_file_payload(file: UploadedFile) -> String {
     let files = Files { files: vec![file]};
 
     // Serialize it to a JSON string.
-    let v = serde_json::to_string(&files);
+    let v = pink_json::to_string(&files);
 
-    v.unwrap().to_string()
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct IPFSSync { directSync: bool }
-
-pub fn create_ipfs_sync(direct_sync: bool) -> String {
-    // Some data structure.
-    let sync = IPFSSync { directSync: direct_sync };
-
-    // Serialize it to a JSON string.
-    let s = serde_json::to_string(&sync);
-
-    s.unwrap().to_string()
-}
-
-
-
-#[derive(Serialize, Deserialize)]
-pub struct RequestContent {
-    data: String,
+    v.unwrap()
 }
 
 
@@ -88,16 +87,21 @@ mod phat_crypto {
         chain_extension::{signing, SigType},
         http_get, http_post, http_put
     };
-    use serde_json::{Result, Value};
+    use pink_json;
+    use crate::{
+        create_file_payload,
+        create_ipfs_sync,
+        UploadedFile,
+        StorageResponse,
+    };
+    use alloc::{vec, vec::Vec, string::String, format};
 
     // use pink_web3::types::{Address, U256, H160};
     use pink_web3::api::{Eth, Namespace};
-    use pink_web3::transports::pink_http::{resolve_ready, PinkHttp};
+    use pink_web3::transports::pink_http::{PinkHttp};
+
 
     use ink_env::ecdsa_recover;
-
-    // No std crate
-    use alloc::{vec, vec::Vec, string::String, format, str::FromStr};
 
     use aes_gcm_siv::aead::{Nonce, KeyInit, Aead};
     use aes_gcm_siv::Aes256GcmSiv;
@@ -210,35 +214,75 @@ mod phat_crypto {
             (response.status_code, response.body)
         }
 
-        // #[ink(message)]
-        // pub fn upload_file_to_decentralized(&self, auth_token: String, bucket_uuid: String, payload: String) -> CustomResult<String> {
-        //     let bucket_uuid: String = String::from("10268b28-684e-42a1-a037-5ce3663e7827");            
-        //     let url = format!("https://app-dev.apillon.io/storage/{}/upload", bucket_uuid);
-        //     let data = "{files: [{fileName: \"TestFile\", \"contentType\": \"text/html\"}]}";
+        #[ink(message)]
+        pub fn upload_file_to_decentralized(&self, bucket_uuid: String, file_name: String, file_content: String) -> CustomResult<String> {
+            let content_type = String::from("text/html");
+            let bucket_uuid: String = String::from(bucket_uuid);
 
-        //     let mut output_buffer = [0u8; 68];
-        //     let message = "44f2b448-b89c-42df-afd2-c487d9a7b4a4:@AUAY0DHm86P";
-        //     let encoded = b64encode(&message.as_bytes(), &mut output_buffer).ok().unwrap();
-        //     let authorization = format!("Authorization: Basic {}\n", String::from_utf8_lossy(encoded));
-        //     let content_type = format!("Content-Type: application/json");
+            // ** UPLOAD FILE TO APILLON STORAGE ** //  
+            let url_f_upload = format!("https://api-dev.apillon.io/storage/{}/upload", bucket_uuid);
+            let url_get_content: String = format!("https://api-dev.apillon.io/storage/{}/content", bucket_uuid);
+            
+            let file = UploadedFile { fileName: String::from(file_name), contentType: content_type };
+            let json_data = create_file_payload(file);
 
-        //     let headers: Vec<(String, String)> = vec![
-        //         ("Authorization".into(), authorization),
-        //         ("Content-Type".into(), content_type)
-        //     ];
+            let mut output_buffer = [0u8; 68];
+            let message = "44f2b448-b89c-42df-afd2-c487d9a7b4a4:@AUAY0DHm86P";
+            let encoded = b64encode(&message.as_bytes(), &mut output_buffer).ok().unwrap();
+            let authorization = format!("Basic {}", String::from_utf8_lossy(encoded));
+            let content_type = format!("application/json");
 
-        //     let response = http_post!(url, data, headers);
+            let headers: Vec<(String, String)> = vec![
+                ("Authorization".into(), authorization),
+                ("Content-Type".into(), content_type)
+            ];
 
-        //     assert_eq!(response.status_code, 200);
-        //     Ok(String::from("Hello, world!"))
-        // }
+            // assert_ne!(headers, headers);
+            let response = http_get!(url_get_content, headers.clone());
+            assert_eq!(response.status_code, 200);
+
+            let response = http_post!(url_f_upload, json_data, headers.clone());
+
+            let resp_body_str = match String::from_utf8(response.body) {
+                Ok(r) => r,
+                Err(e) => panic!("Mja, error, kaj ces {}", e),
+            };
+
+            assert_eq!(response.status_code, 201);
+            let resp: StorageResponse = pink_json::from_str(&resp_body_str).unwrap();
+            let file = &resp.data.files[0];
+            let url_upload_s3: String = format!("{}", file.url);
+            let content = file_content.as_bytes();
+            let origin = String::from("https://app-dev.apillon.io/");
+
+            let content_type = format!("text/plain");
+            let headers_s3: Vec<(String, String)> = vec![
+                ("Content-Type".into(), content_type),
+                ("Referer".into(), origin.clone()),
+                ("Origin".into(), origin.clone())
+            ];
+
+            let response = http_put!(url_upload_s3, *content, headers_s3);
+            assert_eq!(response.status_code, 200);
+
+            // ** TRIGGER UPLOAD TO IPFS (From Apillon storage) ** //
+            let url_sync_ipfs = format!(
+                "https://api-dev.apillon.io/storage/{}/upload/{}/end", 
+                bucket_uuid, resp.data.sessionUuid);
+
+            let ipfs_sync_json = create_ipfs_sync(true);
+
+            let response = http_post!(url_sync_ipfs, ipfs_sync_json, headers.clone());
+            assert_eq!(response.status_code, 200);
+
+            Ok(String::from("DONE"))
+
+        }
+
     }
 
     #[cfg(test)]
     mod tests {
-        use ink_e2e::subxt::rpc::types::StorageData;
-        use crate::StorageResponse;
-
         use super::*;
 
         #[test]
@@ -300,19 +344,19 @@ mod phat_crypto {
                 create_file_payload,
                 create_ipfs_sync,
                 UploadedFile,
-                StorageResponse,
-                PendingFile
+                StorageResponse
             };
             
             let content_type = String::from("text/html");
             let bucket_uuid: String = String::from("10268b28-684e-42a1-a037-5ce3663e7827");
+            let file_name: String = String::from("IamTheFilerus.txt");
+            let file_content: String = String::from("Goo goo g'joob, goo goo goo g'joob");
 
             // ** UPLOAD FILE TO APILLON STORAGE ** //  
             let url_f_upload = format!("https://api-dev.apillon.io/storage/{}/upload", bucket_uuid);
             let url_get_content: String = format!("https://api-dev.apillon.io/storage/{}/content", bucket_uuid);
-
             
-            let file = UploadedFile { fileName: String::from("NovFajlYeeee"), contentType: content_type };
+            let file = UploadedFile { fileName: String::from(file_name), contentType: content_type };
             let json_data = create_file_payload(file);
 
             let mut output_buffer = [0u8; 68];
@@ -327,21 +371,21 @@ mod phat_crypto {
             ];
 
             // assert_ne!(headers, headers);
-            let response_get = http_get!(url_get_content, headers.clone());
-            assert_eq!(response_get.status_code, 200);
+            let response = http_get!(url_get_content, headers.clone());
+            assert_eq!(response.status_code, 200);
 
             let response = http_post!(url_f_upload, json_data, headers.clone());
 
-            let r = match String::from_utf8(response.body) {
+            let resp_body_str = match String::from_utf8(response.body) {
                 Ok(r) => r,
-                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                Err(e) => panic!("Mja, error, kaj ces {}", e),
             };
 
             assert_eq!(response.status_code, 201);
-            let resp: StorageResponse = serde_json::from_str(&r).unwrap();
+            let resp: StorageResponse = pink_json::from_str(&resp_body_str).unwrap();
             let file = &resp.data.files[0];
-            let url_upload_s3: String = file.url.to_owned();
-            let a = b"Hello, world!";
+            let url_upload_s3: String = format!("{}", file.url);
+            let content = file_content.as_bytes();
             let origin = String::from("https://app-dev.apillon.io/");
 
             let content_type = format!("text/plain");
@@ -351,7 +395,8 @@ mod phat_crypto {
                 ("Origin".into(), origin.clone())
             ];
 
-            http_put!(url_upload_s3, *a, headers_s3);
+            let response = http_put!(url_upload_s3, *content, headers_s3);
+            assert_eq!(response.status_code, 200);
 
             // ** TRIGGER UPLOAD TO IPFS (From Apillon storage) ** //
             let url_sync_ipfs = format!(

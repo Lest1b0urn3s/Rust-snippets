@@ -31,6 +31,7 @@ hex = { version = "0.4.3", default-features = false}
 binascii = "0.1.4"
 log = "0.4.17"
 serde_json = { version = "1.0.96", default-features = false, features = ["alloc"]}
+pink-json = "0.4.0"
 
 
 [dev-dependencies]
