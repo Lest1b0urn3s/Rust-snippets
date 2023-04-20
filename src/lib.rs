@@ -171,32 +171,21 @@ mod phat_crypto {
         pub fn get_salt(&self) -> CustomResult<Vec<u8>> {
             Ok(self.salt.clone())
         }
-
-        #[ink(message)]
-        pub fn get_gas_price(&self) -> CustomResult<u128> {
-            let phttp = PinkHttp::new("https://moonbeam-alpha.api.onfinality.io/public");
-            let eth = Eth::new(phttp);
-            let result = eth.gas_price().resolve().unwrap();
-            let result1 = result.as_u128();
-            Ok(result1)
-        }
         
-        // #[ink(message)]
-        // pub fn validate_ownership(&self, account: String) -> CustomResult<u128> {
-        //     let phttp = PinkHttp::new("https://moonbeam-alpha.api.onfinality.io/public");
-        //     let eth = Eth::new(phttp);
-        //     let addr = String::from(account).as_bytes().to_vec();
-        //     // TO H160, which is just the first 20 bytes of the Substrate address
-        //     let addrs = Address::from_slice(&addr[..20]);
-        //     let contract = Contract::from_json(eth, addrs, include_bytes!("erc721_abi.json")).unwrap();
-        //     let query = "ownerOf";
+        #[ink(message)]
+        pub fn validate_ownership(&self, token_id: u8) -> CustomResult<String> {
+            let phttp = PinkHttp::new("https://moonbase-alpha.public.blastapi.io");
+            let eth = Eth::new(phttp);
 
-        //     let token_id = 2;
-        //     let params = (token_id);
-            
-        //     let result: u128 = resolve_ready(contract.query(&query, params, addrs, Options::default(), None)).unwrap();
-        //     Ok(result)
-        // }
+            let addrs_hex = hex_literal::hex!("1b63b10dC015bbcaC201490CA286e844bf7c0ff1");
+            let address: Address = Address::from_slice(&addrs_hex);
+            let contract = Contract::from_json(eth, address, include_bytes!("../abi/erc721_abi.json")).unwrap();
+
+            let query = "ownerOf";
+            let result1: Address = resolve_ready(contract.query(&query, (U256::from(token_id), ), None, Options::default(), None)).unwrap();
+
+            Ok(format!("{:?}", result1))
+        }
 
         #[ink(message)]
         pub fn recovery(&self, sig: Vec<u8>, msg: Vec<u8>) -> CustomResult<[u8; 33]> {
@@ -324,7 +313,7 @@ mod phat_crypto {
 
             let addrs_hex = hex_literal::hex!("1b63b10dC015bbcaC201490CA286e844bf7c0ff1");
             let address: Address = Address::from_slice(&addrs_hex);
-            let contract = Contract::from_json(eth, address, include_bytes!("erc721_abi.json")).unwrap();
+            let contract = Contract::from_json(eth, address, include_bytes!("../abi/erc721_abi.json")).unwrap();
 
             let query = "ownerOf";
             let result1: Address = resolve_ready(contract.query(&query, (U256::from(1), ), None, Options::default(), None)).unwrap();
@@ -332,7 +321,6 @@ mod phat_crypto {
 
             let result2: Address = resolve_ready(contract.query(&query, (U256::from(2), ), None, Options::default(), None)).unwrap();
             assert_eq!("0xc9c7731fab51730224d5a9ec433f59433eb35166", format!("{:?}", result2));
-
         }
         
         #[test]

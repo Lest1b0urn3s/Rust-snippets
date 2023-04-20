@@ -33,6 +33,8 @@ log = "0.4.17"
 serde_json = { version = "1.0.96", default-features = false, features = ["alloc"]}
 pink-json = "0.4.0"
 
+[patch.crates-io]
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }
 
 [dev-dependencies]
 ink_e2e = "4.0.1"
@@ -48,9 +50,11 @@ crate-type = [
 [features]
 default = ["std"]
 std = ["pink-web3/std", "ink/std", "scale/std", "scale-info/std", "pink-extension/std", "serde-json-core/std"]
-
-[env]
-
 # Conventionally, these are defined even if empty
 ink-as-dependency = []
 e2e-tests = []
+
+[profile.release]
+overflow-checks = false     # Disable integer overflow checks.
+lto = false                 # Enable full link-time optimization.
+
