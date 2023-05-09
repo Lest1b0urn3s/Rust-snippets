@@ -201,7 +201,7 @@ mod phat_crypto {
         }
 
         #[ink(message)]
-        pub fn download_file_from_decentralized(&self) -> (u16, Vec<u8>) {
+        pub fn download_file_from_decentralized(&self, url: String) -> (u16, Vec<u8>) {
             let response = http_get!("https://ipfs2.apillon.io/ipfs/QmQLuYkRADePaWJtG6vxXaxurMgeuhcbEkRfC4xW6ceDFQ");
             (response.status_code, response.body)
         }
@@ -211,7 +211,7 @@ mod phat_crypto {
             let content_type = String::from("text/html");
             let bucket_uuid: String = String::from(bucket_uuid);
 
-            // ** UPLOAD FILE TO APILLON STORAGE ** //  
+            // ** UPLOAD FILE TO APILLON STORAGE ** //
             let url_f_upload = format!("https://api-dev.apillon.io/storage/{}/upload", bucket_uuid);
             let url_get_content: String = format!("https://api-dev.apillon.io/storage/{}/content", bucket_uuid);
             
@@ -281,6 +281,7 @@ mod phat_crypto {
 
         #[test]
         fn recovery_signature() {
+            // R+S actually
             let sig = "83ee96fd0047083b3c302cd2de3a5c5eb87e56903486d10f410f94cb17137e0c69a94113361aeb2f958fc211709da2983824fb2247ba3a8773354df94d8b16921b";
             let msg = "5240a32aab803873141d1df3dbfce4213d56415caae2cdd234a8549836b6c96e";
             let expected_pub_key = "02b9e72dfd423bcf95b3801ac93f4392be5ff22143f9980eb78b3a860c4843bfd0";
