@@ -201,13 +201,28 @@ mod phat_crypto {
         }
 
         #[ink(message)]
-        pub fn download_file_from_decentralized(&self, url: String) -> (u16, Vec<u8>) {
-            let response = http_get!("https://ipfs2.apillon.io/ipfs/QmQLuYkRADePaWJtG6vxXaxurMgeuhcbEkRfC4xW6ceDFQ");
-            (response.status_code, response.body)
+        pub fn download_file_from_decentralized(&self, url: String) -> CustomResult<String> {
+            let response = http_get!(url);
+            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+        
+            // Decrypt payload
+            let cipher = Aes256GcmSiv::new(key.into());
+            let decrypted_text = cipher.decrypt(&nonce, response.body.as_ref()).unwrap();
+            let result = format!("{}", String::from_utf8_lossy(&decrypted_text));
+
+            Ok(result)
         }
 
         #[ink(message)]
         pub fn upload_file_to_decentralized(&self, bucket_uuid: String, file_name: String, file_content: String) -> CustomResult<String> {
+            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+        
+            // Encrypt payload
+            let cipher = Aes256GcmSiv::new(key.into());
+            let cncrypted_content: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
+
             let content_type = String::from("text/html");
             let bucket_uuid: String = String::from(bucket_uuid);
 
@@ -244,7 +259,7 @@ mod phat_crypto {
             let resp: StorageResponse = pink_json::from_str(&resp_body_str).unwrap();
             let file = &resp.data.files[0];
             let url_upload_s3: String = format!("{}", file.url);
-            let content = file_content.as_bytes();
+            let content = cncrypted_content;
             let origin = String::from("https://app-dev.apillon.io/");
 
             let content_type = format!("text/plain");
