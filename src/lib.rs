@@ -17,7 +17,7 @@ mod phat_crypto {
     use alloc::{vec, vec::Vec, string::String, format};
 
     use crate::error::ApillonError;
-    use utils::utils::{recover_acc_address};
+    use utils::utils::{recover_acc_address, verify_ownership_moonbase};
 
     use ink_storage::{Mapping};
     use aes_gcm_siv::{
@@ -90,9 +90,17 @@ mod phat_crypto {
         // // }
 
         #[ink(message)]
-        pub fn get_cid(&self, nft_id: u8) -> CustomResult<String> {
-            let cid = self.cid_map.get(nft_id).unwrap();
-            Ok(format!("NFT {}: {}", nft_id, cid))
+        pub fn get_cid(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
+            let address = recover_acc_address(signature, message);
+            let owner_address = verify_ownership_moonbase(nft_id);
+
+            if address == owner_address {
+                let cid = self.cid_map.get(nft_id).unwrap();
+                Ok(format!("NFT {}: {}", nft_id, cid))
+            } else {
+                Ok(format!("Invalid address {} vs {}", address, owner_address))
+            }
+            
         }
 
         // #[ink(message)]
