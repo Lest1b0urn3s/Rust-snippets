@@ -14,6 +14,7 @@ use pink::PinkEnvironment;
 #[pink::contract(env=PinkEnvironment)]
 mod phat_crypto {
     use super::*;
+    use pink::http_get;
     use alloc::{vec, vec::Vec, string::String, format};
 
     use crate::error::ApillonError;
@@ -63,17 +64,17 @@ mod phat_crypto {
             }
         }
 
-        // #[ink(message)]
-        // pub fn encrypt_content(&self, file_content: String) -> CustomResult<Vec<u8>> {
-        //     let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-        //     let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+        #[ink(message)]
+        pub fn encrypt_content(&self, file_content: String) -> CustomResult<Vec<u8>> {
+            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
         
-        //     // Encrypt payload
-        //     let cipher = Aes256GcmSiv::new(key.into());
-        //     let encrypted: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
+            // Encrypt payload
+            let cipher = Aes256GcmSiv::new(key.into());
+            let encrypted: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
 
-        //     Ok(encrypted)
-        // }
+            Ok(encrypted)
+        }
 
         #[ink(message, payable)]
         pub fn set_cid(&mut self, nft_id: u8, cid: String) {
@@ -96,7 +97,9 @@ mod phat_crypto {
 
             if address == owner_address {
                 let cid = self.cid_map.get(nft_id).unwrap();
-                Ok(format!("NFT {}: {}", nft_id, cid))
+                let response = http_get!(
+                    format!("https://ipfs2.apillon.io/ipfs/{}", cid));
+                Ok(format!("NFT {}: {}, FILE: {:?}", nft_id, cid, response.body))
             } else {
                 Ok(format!("Invalid address {} vs {}", address, owner_address))
             }
