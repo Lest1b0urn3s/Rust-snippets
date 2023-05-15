@@ -9,111 +9,111 @@ pub use scale::{Decode, Encode};
 
 // pink_extension is short for Phala ink! extension
 use pink_extension as pink;
-use serde::{Deserialize, Serialize};
-use alloc::{vec, vec::Vec, string::String};
-use pink::{
-    PinkEnvironment,
-    http_get,
-};
+use pink::PinkEnvironment;
 
 #[pink::contract(env=PinkEnvironment)]
 mod phat_crypto {
+    use super::*;
     use alloc::{vec, vec::Vec, string::String, format};
 
-    use crate::error::CryptoError;
-    use crate::utils::utils::{recover_acc_address};
+    use crate::error::ApillonError;
+    use utils::utils::{recover_acc_address};
 
-    use super::pink::*;
-
-    use ink_storage::{Mapping, traits::{ManualKey}};
+    use ink_storage::{Mapping};
     use aes_gcm_siv::{
         Aes256GcmSiv,
         aead::{Nonce, KeyInit, Aead}
     };
     use cipher::{consts::{U12, U32}, generic_array::GenericArray};
-    pub type CustomResult<T> = core::result::Result<T, CryptoError>;
 
-    type Address = String;
-    type CID = String;
+    pub type CustomResult<T> = core::result::Result<T, ApillonError>;
+
+    type NftId = u8;
+    type Cid = String;
 
     #[ink(storage)]
-    #[derive(Default)]
     pub struct ApillonContract {
         private_key: Vec<u8>,
         salt: Vec<u8>,
-        cid_mappings: Mapping<Address, CID, ManualKey<123>>,
-        address: [u8; 20],
+        cid_map: Mapping<NftId, Cid>,
+        owner: AccountId
     }
 
     impl ApillonContract {
+        // #[ink(constructor)]
+        // pub fn new() -> Self {
+        //     let salt = b"981781668367".to_vec();
+        //     // TODO: Add an actual random number
+        //     let private_key = vec![0; 32];
+        //     let cid_map = Mapping::default();
+
+        //     let owner = Self::env().caller();
+
+        //     Self { private_key, salt, cid_map, owner: owner }
+        // }
+
         #[ink(constructor)]
         pub fn new() -> Self {
-            let mut instance = Self::default();
             let salt = b"981781668367".to_vec();
             // TODO: Add an actual random number
             let private_key = vec![0; 32];
-            let address = hex_literal::hex!("90f44d3b9d9fa626c1f3109ba55296b9edd7d3ce");
-
-            let test = String::from("I am an address");
-            
-            // Return SELF with parameters
-            instance.address = address;
-            instance.private_key = private_key;
-            instance.cid_mappings.insert("1", &test);
-
-            instance
+            let cid_map = Mapping::default();
+            Self {
+                private_key, salt, cid_map, owner: Self::env().caller(),
+            }
         }
 
-        #[ink(message)]
-        pub fn encrypt_content(&self, file_content: String) -> CustomResult<Vec<u8>> {
-            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+        // #[ink(message)]
+        // pub fn encrypt_content(&self, file_content: String) -> CustomResult<Vec<u8>> {
+        //     let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+        //     let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
         
-            // Encrypt payload
-            let cipher = Aes256GcmSiv::new(key.into());
-            let encrypted: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
+        //     // Encrypt payload
+        //     let cipher = Aes256GcmSiv::new(key.into());
+        //     let encrypted: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
 
-            Ok(encrypted)
+        //     Ok(encrypted)
+        // }
+
+        #[ink(message, payable)]
+        pub fn set_cid(&mut self, nft_id: u8, cid: String) {
+            if self.env().caller() != self.owner {
+                panic!("IT' false")
+            }
+
+            self.cid_map.insert(nft_id, &cid);
         }
+
+        // // #[ink(message)]
+        // // pub fn test_get_owner(&self) -> CustomResult<AccountId> {
+        // //     Ok(self.owner.clone())
+        // // }
 
         #[ink(message)]
-        pub fn update_cid_map(&mut self, signature: Vec<u8>, message: Vec<u8>, nft_id: u8, cid: String) -> CustomResult<String> {
-            let address_base = recover_acc_address(signature, message);
-            // let contract = create_contract_interface(&self.address);
-            self.cid_mappings.insert(address_base, &cid);
-            Ok(format!("OK"))
+        pub fn get_cid(&self, nft_id: u8) -> CustomResult<String> {
+            let cid = self.cid_map.get(nft_id).unwrap();
+            Ok(format!("NFT {}: {}", nft_id, cid))
         }
 
-        #[ink(message)]
-        pub fn test(&mut self, signature: Vec<u8>, message: Vec<u8>, nft_id: u8, cid: String) -> CustomResult<String> {
-            Ok(format!("{}", &cid))
-        }
+        // #[ink(message)]
+        // pub fn test_insert(&mut self) {
+        //     let s = String::from("asdasdasd");
+        //     self.cid_map.insert(100, &s);
+        // }
+        // #[ink(message)]
+        // pub fn test_get(&self) -> Option<String> {
+        //     let a = self.cid_map.get(100);
+        //     a
+        // }
 
-        #[ink(message)]
-        pub fn fetch_cid_map(&mut self, address: String) -> CustomResult<String> {
-            use core::panic;
-            let old_size = self.cid_mappings.insert("X", &address);
-            let ret = format!("OLD SIZE {:?} NEW SIZE {:?}, INSERTED ELEMENT {:?}", 
-            old_size, self.cid_mappings.size("X"), self.cid_mappings.get("X"));
+        // #[ink(message)]
+        // pub fn download_and_decrypt_file(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
+        //     let addrs = recover_acc_address(signature, message);
+        //     let cid = self.cid_map.get(nft_id).unwrap();
+        //     // let contract = init_moonbase_interface();
 
-            Ok(ret)
-        }
-
-        #[ink(message)]
-        pub fn download_and_decrypt_file(&self, url: String) -> CustomResult<String> {
-            // let contract = create_contract_interface(&self.address);
-
-            // let response = http_get!(url);
-            // let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-            // let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
-        
-            // // Decrypt payload
-            // let cipher = Aes256GcmSiv::new(key.into());
-            // let decrypted_text = cipher.decrypt(&nonce, response.body.as_ref()).unwrap();
-            // let result = format!("{}", String::from_utf8_lossy(&decrypted_text));
-
-            Ok(String::from("OK"))
-        }
+        //     Ok(String::from("OK"))
+        // }
     }
 
     #[cfg(test)]
@@ -121,6 +121,15 @@ mod phat_crypto {
         use core::panic;
 
         use super::*;
+
+        // let response = http_get!(url);
+        // let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+        // let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+    
+        // // Decrypt payload
+        // let cipher = Aes256GcmSiv::new(key.into());
+        // let decrypted_text = cipher.decrypt(&nonce, response.body.as_ref()).unwrap();
+        // let result = format!("{}", String::from_utf8_lossy(&decrypted_text));
 
         // #[test]
         // fn validation() {
