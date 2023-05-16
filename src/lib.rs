@@ -41,20 +41,9 @@ mod phat_crypto {
     }
 
     impl ApillonContract {
-        // #[ink(constructor)]
-        // pub fn new() -> Self {
-        //     let salt = b"981781668367".to_vec();
-        //     // TODO: Add an actual random number
-        //     let private_key = vec![0; 32];
-        //     let cid_map = Mapping::default();
-
-        //     let owner = Self::env().caller();
-
-        //     Self { private_key, salt, cid_map, owner: owner }
-        // }
-
         #[ink(constructor)]
         pub fn new() -> Self {
+            // TODO: Add an actual random number
             let salt = b"981781668367".to_vec();
             // TODO: Add an actual random number
             let private_key = vec![0; 32];
@@ -76,22 +65,31 @@ mod phat_crypto {
             Ok(encrypted)
         }
 
-        #[ink(message, payable)]
-        pub fn set_cid(&mut self, nft_id: u8, cid: String) {
+        #[ink(message)]
+        pub fn set_cid_tx(&mut self, nft_id: u8, cid: String) {
             if self.env().caller() != self.owner {
-                panic!("IT' false")
+                core::panic!("caller {:?}, owner {:?}", self.env().caller(), self.owner)
             }
 
             self.cid_map.insert(nft_id, &cid);
         }
 
-        // // #[ink(message)]
-        // // pub fn test_get_owner(&self) -> CustomResult<AccountId> {
-        // //     Ok(self.owner.clone())
-        // // }
+        #[ink(message)]
+        pub fn set_cid_query(&self) -> CustomResult<String>{
+            if self.env().caller() != self.owner {
+                core::panic!("caller {:?}, owner {:?}", self.env().caller(), self.owner)
+            }
+
+            Ok(format!("caller {:?}, owner {:?}", self.env().caller(), self.owner))
+        }
 
         #[ink(message)]
-        pub fn get_cid(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
+        pub fn get_cid(&self, nft_id: u8) -> CustomResult<String>{
+            Ok(self.cid_map.get(nft_id).unwrap())
+        }
+
+        #[ink(message)]
+        pub fn download_and_decrypt(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
             let address = recover_acc_address(signature, message);
             let owner_address = verify_ownership_moonbase(nft_id);
 
@@ -99,32 +97,20 @@ mod phat_crypto {
                 let cid = self.cid_map.get(nft_id).unwrap();
                 let response = http_get!(
                     format!("https://ipfs2.apillon.io/ipfs/{}", cid));
-                Ok(format!("NFT {}: {}, FILE: {:?}", nft_id, cid, response.body))
+
+                // let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+                // let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+            
+                // // Decrypt payload
+                // let cipher = Aes256GcmSiv::new(key.into());
+                // let decrypted_text = cipher.decrypt(&nonce, response.body.as_ref()).unwrap();
+                // let result = format!("{}", String::from_utf8_lossy(&decrypted_text));
+
+                Ok(format!("FILE: {:?}", response.body))
             } else {
                 Ok(format!("Invalid address {} vs {}", address, owner_address))
             }
-            
         }
-
-        // #[ink(message)]
-        // pub fn test_insert(&mut self) {
-        //     let s = String::from("asdasdasd");
-        //     self.cid_map.insert(100, &s);
-        // }
-        // #[ink(message)]
-        // pub fn test_get(&self) -> Option<String> {
-        //     let a = self.cid_map.get(100);
-        //     a
-        // }
-
-        // #[ink(message)]
-        // pub fn download_and_decrypt_file(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
-        //     let addrs = recover_acc_address(signature, message);
-        //     let cid = self.cid_map.get(nft_id).unwrap();
-        //     // let contract = init_moonbase_interface();
-
-        //     Ok(String::from("OK"))
-        // }
     }
 
     #[cfg(test)]
