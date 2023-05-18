@@ -54,43 +54,56 @@ mod phat_crypto {
         }
 
         #[ink(message)]
-        pub fn encrypt_content(&self, file_content: String) -> CustomResult<Vec<u8>> {
+        pub fn encrypt_content(&self, file_content: String) -> CustomResult<String> {
             let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
             let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
-        
+
             // Encrypt payload
             let cipher = Aes256GcmSiv::new(key.into());
             let encrypted: Vec<u8> = cipher.encrypt(nonce, file_content.as_bytes().as_ref()).unwrap();
 
-            Ok(encrypted)
+            Ok(format!("{}", hex::encode(&encrypted)))
         }
 
         #[ink(message)]
-        pub fn set_cid_tx(&mut self, nft_id: u8, cid: String) {
+        pub fn decrypt_test(&self, encrypted_text_hex: String) -> CustomResult<String> {
+            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+        
+            // Encrypt payload
+            let decoded = hex::decode(encrypted_text_hex).unwrap();
+            let cipher = Aes256GcmSiv::new(key.into());
+            let decrypted: Vec<u8> = cipher.decrypt(nonce, decoded.as_ref()).unwrap();
+
+            Ok(format!("{}", String::from_utf8_lossy(&decrypted)))
+        }
+
+        #[ink(message)]
+        pub fn set_cid(&mut self, nft_id: u8, cid: String) {
             if self.env().caller() != self.owner {
+                // TODO: This does not currently work
                 core::panic!("caller {:?}, owner {:?}", self.env().caller(), self.owner)
             }
-
             self.cid_map.insert(nft_id, &cid);
         }
 
         #[ink(message)]
-        pub fn set_cid_query(&self) -> CustomResult<String>{
-            if self.env().caller() != self.owner {
-                core::panic!("caller {:?}, owner {:?}", self.env().caller(), self.owner)
-            }
-
-            Ok(format!("caller {:?}, owner {:?}", self.env().caller(), self.owner))
+        pub fn set_cid_test(&mut self) {
+            let t = String::from("TEST-CID-NEW");
+            self.cid_map.insert(1, &t);
         }
 
         #[ink(message)]
-        pub fn get_cid(&self, nft_id: u8) -> CustomResult<String>{
-            Ok(self.cid_map.get(nft_id).unwrap())
+        pub fn get_cid(&self, nft_id: u8) -> CustomResult<String> {
+            let cid = self.cid_map.get(nft_id).unwrap();
+            Ok(format!("{}", cid))
         }
 
         #[ink(message)]
         pub fn download_and_decrypt(&self, signature: String, message: String, nft_id: u8) -> CustomResult<String> {
+            // Recover address: signature + message -> pubkey -> address 
             let address = recover_acc_address(signature, message);
+            // Validate ownership for nft_id
             let owner_address = verify_ownership_moonbase(nft_id);
 
             if address == owner_address {
@@ -98,15 +111,23 @@ mod phat_crypto {
                 let response = http_get!(
                     format!("https://ipfs2.apillon.io/ipfs/{}", cid));
 
-                // let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-                // let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
-            
-                // // Decrypt payload
-                // let cipher = Aes256GcmSiv::new(key.into());
-                // let decrypted_text = cipher.decrypt(&nonce, response.body.as_ref()).unwrap();
-                // let result = format!("{}", String::from_utf8_lossy(&decrypted_text));
+                let resp_body_str = match String::from_utf8(response.body) {
+                    Ok(value) => value,
+                    Err(e) => panic!("Mja, error, kaj ces {}", e),
+                };
 
-                Ok(format!("FILE: {:?}", response.body))
+                // Decrypt payload
+                let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+                let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
+            
+                // Encrypt payload
+                let decoded = hex::decode(resp_body_str).unwrap();
+                let cipher = Aes256GcmSiv::new(key.into());
+                let decrypted: Vec<u8> = cipher.decrypt(nonce, decoded.as_ref()).unwrap();
+
+                let result = format!("{}", String::from_utf8_lossy(&decrypted));
+
+                Ok(result)
             } else {
                 Ok(format!("Invalid address {} vs {}", address, owner_address))
             }

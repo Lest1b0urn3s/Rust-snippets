@@ -1,4 +1,4 @@
-use alloc::{string::String};
+use alloc::string::String;
 
 use ink_env::{ecdsa_recover, ecdsa_to_eth_address};
 use pink_web3::{
