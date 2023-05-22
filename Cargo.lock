@@ -2943,7 +2943,6 @@ dependencies = [
  "pink-extension-runtime",
  "pink-json",
  "pink-web3",
- "rand 0.8.5",
  "scale-info",
  "serde",
  "serde-json-core",

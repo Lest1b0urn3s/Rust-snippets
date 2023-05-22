@@ -7,20 +7,20 @@ pub mod utils;
 
 pub use scale::{Decode, Encode};
 
-// pink_extension is short for Phala ink! extension
+// pink_extension is short for Phala Ink! extension
 use pink_extension as pink;
 use pink::PinkEnvironment;
-
+use pink::chain_extension::signing::derive_sr25519_key;
 #[pink::contract(env=PinkEnvironment)]
 mod phat_crypto {
     use super::*;
     use pink::http_get;
-    use alloc::{vec, vec::Vec, string::String, format};
+    use alloc::{vec::Vec, string::String, format};
 
     use crate::error::ApillonError;
     use utils::utils::{recover_acc_address, verify_ownership_moonbase};
 
-    use ink_storage::{Mapping};
+    use ink_storage::Mapping;
     use aes_gcm_siv::{
         Aes256GcmSiv,
         aead::{Nonce, KeyInit, Aead}
@@ -43,19 +43,20 @@ mod phat_crypto {
     impl ApillonContract {
         #[ink(constructor)]
         pub fn new() -> Self {
-            // TODO: Add an actual random number
+            // Default constructor
             let salt = b"981781668367".to_vec();
-            // TODO: Add an actual random number
-            let private_key = vec![0; 32];
+            let private_key = derive_sr25519_key(&salt);
+            let owner = Self::env().caller();
             let cid_map = Mapping::default();
+
             Self {
-                private_key, salt, cid_map, owner: Self::env().caller(),
+                private_key, salt, cid_map, owner,
             }
         }
 
         #[ink(message)]
         pub fn encrypt_content(&self, file_content: String) -> CustomResult<String> {
-            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key[..32]);
             let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
 
             // Encrypt payload
@@ -66,31 +67,12 @@ mod phat_crypto {
         }
 
         #[ink(message)]
-        pub fn decrypt_test(&self, encrypted_text_hex: String) -> CustomResult<String> {
-            let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
-            let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
-        
-            // Encrypt payload
-            let decoded = hex::decode(encrypted_text_hex).unwrap();
-            let cipher = Aes256GcmSiv::new(key.into());
-            let decrypted: Vec<u8> = cipher.decrypt(nonce, decoded.as_ref()).unwrap();
-
-            Ok(format!("{}", String::from_utf8_lossy(&decrypted)))
-        }
-
-        #[ink(message)]
         pub fn set_cid(&mut self, nft_id: u8, cid: String) {
             if self.env().caller() != self.owner {
                 // TODO: This does not currently work
                 core::panic!("caller {:?}, owner {:?}", self.env().caller(), self.owner)
             }
             self.cid_map.insert(nft_id, &cid);
-        }
-
-        #[ink(message)]
-        pub fn set_cid_test(&mut self) {
-            let t = String::from("TEST-CID-NEW");
-            self.cid_map.insert(1, &t);
         }
 
         #[ink(message)]
@@ -117,7 +99,7 @@ mod phat_crypto {
                 };
 
                 // Decrypt payload
-                let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key);
+                let key: &GenericArray<u8, U32> = GenericArray::from_slice(&self.private_key[..32]);
                 let nonce: &GenericArray<u8, U12> = Nonce::<Aes256GcmSiv>::from_slice(&self.salt);
             
                 // Encrypt payload

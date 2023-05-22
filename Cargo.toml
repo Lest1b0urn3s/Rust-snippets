@@ -20,8 +20,7 @@ aes-gcm-siv = { version = "0.11.1", default-features = false, features = ["aes",
 
 debug_print = { version = "1.0"}
 
-rand = { version = "0.8.5", default-features = false }
-getrandom = { version = "0.2", features = ["js"] } 
+getrandom = { version = "0.2", default-features = false, features = ["js"] } 
 pink-web3 = { version="0.20.1", default-features = false, features = ["pink", "signing"]} 
 hex-literal = "0.4.1"
 tiny-keccak = { version = "2.0.1", features = ["keccak"] }
